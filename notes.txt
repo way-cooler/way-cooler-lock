@@ -1,0 +1,5 @@
+Use this: https://github.com/1wilkens/pam-auth
+and also the posix crate (specifically http://mahkoh.github.io/posix/doc/posix/pwd/fn.getpwuid.html)
+
+This is the same way sway-lock works, though it means we'll need unsafe code calling into getpwuid. Which is ok I guess.
+Everything else should be guichy
