@@ -106,7 +106,7 @@ fn main() {
     let output;
     {
         let state = event_queue.state();
-        let env = state.get_handler::<EnvHandler<WaylandEnv>>(0);
+        let env = state.get_handler::<EnvHandler<WaylandEnv>>(env_id);
         // Have to bind a new one, cause yah do
         output = registry.bind::<wl_output::WlOutput>(2, 9);
     }
@@ -128,7 +128,7 @@ fn main() {
         };
 
         let (buffer, file) = {
-            let env = state.get_handler::<EnvHandler<WaylandEnv>>(0);
+            let env = state.get_handler::<EnvHandler<WaylandEnv>>(env_id);
             // Create buffer, write bytes into buffer
             let mut file = tempfile::tempfile().ok()
                 .expect("Unable to create buffer file");
