@@ -1,5 +1,5 @@
 [root]
-name = "way-cooler-lockscreen"
+name = "wc-lock"
 version = "0.0.0"
 dependencies = [
  "byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
