@@ -4,13 +4,17 @@ extern crate tempfile;
 extern crate byteorder;
 extern crate wayland_kbd;
 
-use std::io::Write;
-use std::os::unix::io::{RawFd, AsRawFd, FromRawFd};
+mod input;
+mod window;
 
-use wayland_client::{EventQueueHandle, EnvHandler, Proxy};
-use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm, wl_shell_surface, wl_buffer,
-                               wl_seat, wl_keyboard, wl_surface, wl_output};
-use byteorder::{NativeEndian, WriteBytesExt};
+use input::{Input};
+use window::{Resolution, Window};
+
+use wayland_client::EnvHandler;
+use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm,
+                               wl_seat, wl_keyboard,
+                               wl_output, wl_registry};
+use wayland_kbd::MappedKeyboard;
 
 
 wayland_env!(WaylandEnv,
@@ -21,181 +25,82 @@ wayland_env!(WaylandEnv,
              output: wl_output::WlOutput
 );
 
-/// Used to know how big to make the surface.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Resolution {
-    w: u32,
-    h: u32
-}
-
-impl Resolution {
-    fn size(self) -> u32 {
-        self.w * self.h
-    }
-}
-
-struct Window {
-    buffer: wl_buffer::WlBuffer,
-    file: std::fs::File,
-}
-
 struct LockScreen {
-    /// Optional resolution, filled in when wl_output::mode is triggered.
-    pub res: Option<Resolution>,
-    pub window: Option<Window>,
-    // The string the user has input-ed so far.
-    pub input: String
+    /// ID for the `Window` struct
+    window_id: usize,
+    /// ID for the `Input` struct
+    input_id: usize
 }
 
 
 impl LockScreen {
-    fn new() -> Self {
+    fn new(window_id: usize, input_id: usize) -> Self {
         LockScreen {
-            res: None,
-            window: None,
-            input: "".into()
-        }
-    }
-
-    // allocates a buffer to hold the surface data
-    fn attach_buffer(&mut self, win: Window) {
-        self.window = Some(win);
-    }
-}
-
-impl wl_shell_surface::Handler for LockScreen {
-    fn ping(&mut self, _: &mut EventQueueHandle,
-            me: &wl_shell_surface::WlShellSurface,
-            serial: u32) {
-        me.pong(serial);
-    }
-
-    // we ignore the other methods in this example, by default they do nothing
-}
-
-declare_handler!(LockScreen,
-                 wl_shell_surface::Handler,
-                 wl_shell_surface::WlShellSurface);
-
-
-impl wl_output::Handler for LockScreen {
-    fn mode(&mut self,
-            evqh: &mut EventQueueHandle,
-            proxy: &wl_output::WlOutput,
-            flags: wl_output::Mode,
-            width: i32,
-            height: i32,
-            refresh: i32) {
-        self.res = Some(Resolution {
-            w: width as u32,
-            h: height as u32
-        });
-        println!("wxh: {}x{}", width, height);
-    }
-}
-
-declare_handler!(LockScreen, wl_output::Handler, wl_output::WlOutput);
-
-impl wayland_kbd::Handler for LockScreen {
-    fn key(&mut self,
-           _: &mut EventQueueHandle,
-           _: &wl_keyboard::WlKeyboard,
-           _: u32,
-           _: u32,
-           _: &wayland_kbd::ModifiersState,
-           _: u32,
-           _: u32,
-           state: wl_keyboard::KeyState,
-           utf8: Option<String>) {
-        if let wl_keyboard::KeyState::Pressed = state {
-            if let Some(txt) = utf8 {
-                print!("{}", txt);
-                ::std::io::stdout().flush().unwrap();
-            }
+            window_id,
+            input_id
         }
     }
 }
-
 
 fn main() {
     let (display, mut event_queue) = match wayland_client::default_connect() {
         Ok(ret) => ret,
         Err(e) => panic!("Cannot connect to wayland server: {:?}", e)
     };
+    // Associate the main environment handler to event queue.
     let env_id = event_queue.add_handler(EnvHandler::<WaylandEnv>::new());
     let registry = display.get_registry();
     event_queue.register::<_, EnvHandler<WaylandEnv>>(&registry, env_id);
     // a roundtrip sync will dispatch all event declaring globals to the handler
-    event_queue.sync_roundtrip().unwrap();
+    // This will make all the globals usable.
+    event_queue.sync_roundtrip().expect("Could not sync roundtrip");
 
-    // Can now fetch the output and associate the lock screen
+    // Fetch the output now that it has been declared by the compositor.
+    let output = get_output(registry);
 
-    let output;
-    {
-        let state = event_queue.state();
-        let env = state.get_handler::<EnvHandler<WaylandEnv>>(env_id);
-        // Have to bind a new one, cause yah do
-        output = registry.bind::<wl_output::WlOutput>(2, 9);
-    }
+    // Set up `Resolution`, which ensures the lockscreen is the same
+    // size as the output, even if it resizes.
+    let resolution = Resolution::new();
+    let resolution_id = event_queue.add_handler(resolution);
+    event_queue.register::<_, Resolution>(&output, resolution_id);
 
-    let mut lock_screen = LockScreen::new();
-    let lock_screen_id = event_queue.add_handler(lock_screen);
-    event_queue.register::<_, LockScreen>(&output, lock_screen_id);
+    // Dispatch so that the resolution is properly set in the handler.
+    event_queue.dispatch().expect("Could not dispatch resolution");
 
-    event_queue.dispatch().unwrap();
-    let shell_surface;
-    let keyboard;
-    {
-        // get the buffer size out, allocate it, drop the env
-        // and then pass to lock_screen with a new mutable borrow
-        let mut state = event_queue.state();
-        // Get the resolution
-        let res = {
-            let lock_screen: &LockScreen = state.get_handler(lock_screen_id);
-            lock_screen.res.clone().unwrap()
-        };
+    // Set up `Window`, which takes care of drawing to the buffer.
+    // It uses the `Resolution` to determine how big to make the buffer.
+    let window = Window::new(resolution_id, env_id, event_queue.state());
+    let shell_surface = window.shell_surface();
+    let window_id = event_queue.add_handler(window);
+    event_queue.register::<_, Window>(&shell_surface, window_id);
 
-        let (buffer, file) = {
-            let env = state.get_handler::<EnvHandler<WaylandEnv>>(env_id);
-            // Create buffer, write bytes into buffer
-            let mut file = tempfile::tempfile().ok()
-                .expect("Unable to create buffer file");
-            for _ in 0..(res.size()) {
-                file.write_u32::<NativeEndian>(0).unwrap();
-            }
-            file.flush().unwrap();
-            // Create surface
-            let surface = env.compositor.create_surface();
-            shell_surface = env.shell.get_shell_surface(&surface);
-            let pool = env.shm.
-                create_pool(file.as_raw_fd(), (res.w * res.h * 4) as i32);
-            let buffer = pool.create_buffer(0,
-                                            res.w as i32,
-                                            res.h as i32,
-                                            (res.w * 4) as i32,
-                                            wl_shm::Format::Argb8888)
-                .expect("Pool is already dead");
-            shell_surface.set_toplevel();
-            surface.attach(Some(&buffer), 0, 0);
-            surface.commit();
-            keyboard = env.seat.get_keyboard().expect("Seat was destroyed");
-            (buffer, file)
-        };
-        // Now attach buffer
-        {
-            let lock_screen: &mut LockScreen = state.get_mut_handler(lock_screen_id);
-            lock_screen.attach_buffer(Window { buffer, file});
-        }
-    }
-    // Register this supporting the shell interface
-    event_queue.register::<_, LockScreen>(&shell_surface, lock_screen_id);
-    // Register this supporting the mapped keyboard interface from wayland_kbd
-    // TODO Gotta figure out how to structure this so that it's the same struct
-    // ORRRRR Have two different structs and use message passing (should be easier)
-    let kbd_handler = event_queue.add_handler(wayland_kbd::MappedKeyboard::new(LockScreen::new()).ok().expect("libxkbcommon is missing!"));
-    event_queue.register::<_, wayland_kbd::MappedKeyboard<LockScreen>>(&keyboard, kbd_handler);
+    // Set up `Input`, which processes user input before passing it off to PAM
+    // for authentication.
+    let input = MappedKeyboard::new(Input::new()).ok()
+        .expect("Could not create input handler");
+    let input_id = event_queue.add_handler(input);
+    let keyboard = get_keyboard(env_id, &mut event_queue);
+    event_queue.register::<_, MappedKeyboard<Input>>(&keyboard, input_id);
+
+    // `LockScreen` has references to both window and input, with helpful
+    // methods wrapping both to keep this high-level.
+    let lock_screen = LockScreen::new(window_id, input_id);
+
     loop {
         display.flush().unwrap();
         event_queue.dispatch().unwrap();
     }
+}
+
+
+fn get_output(registry: wl_registry::WlRegistry) -> wl_output::WlOutput {
+    registry.bind::<wl_output::WlOutput>(2, 9)
+}
+
+fn get_keyboard(env_id: usize, event_queue: &mut wayland_client::EventQueue)
+                -> wl_keyboard::WlKeyboard {
+    let state = event_queue.state();
+    let env = state.get_handler::<EnvHandler<WaylandEnv>>(env_id);
+    env.seat.get_keyboard().expect("Seat was destroyed")
 }
