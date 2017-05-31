@@ -3,9 +3,11 @@ extern crate wayland_client;
 extern crate tempfile;
 extern crate byteorder;
 extern crate wayland_kbd;
+extern crate libc;
 
 mod input;
 mod window;
+mod pam;
 
 use input::{Input};
 use window::{Resolution, Window};

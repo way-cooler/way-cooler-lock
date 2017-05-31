@@ -4,7 +4,9 @@ version = "0.0.0"
 dependencies = [
  "byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "dbus 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gcc 0.3.45 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.21 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "wayland-client 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "wayland-kbd 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",

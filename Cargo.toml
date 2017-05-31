@@ -1,5 +1,6 @@
 [package]
 name = "wc-lock"
+build = "build.rs"
 version = "0.0.0"
 authors = ["Timidger <APragmaticPlace@gmail.com>"]
 description = "Lockscreen program for Way Cooler"
@@ -13,3 +14,8 @@ tempfile = "2.1"
 byteorder = ">= 0.3, < 0.6"
 image = "^0.10.3"
 dbus = "0.5.2"
+libc = "0.2.*"
+
+
+[build-dependencies]
+gcc = "0.3"

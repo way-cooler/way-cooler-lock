@@ -2,10 +2,13 @@
 
 /// Module containing logic for writing to the screen.
 
-use std::io::Write;
+use std::ffi::CString;
+
 use wayland_client::EventQueueHandle;
 use wayland_client::protocol::wl_keyboard;
 use wayland_kbd::{self, ModifiersState, keysyms};
+
+use pam::check_auth;
 
 pub struct Input {
     buffer: String
@@ -35,6 +38,19 @@ impl wayland_kbd::Handler for Input {
             match keysym {
                 keysyms::XKB_KEY_Return |
                 keysyms::XKB_KEY_KP_Enter => {
+                    let username = "timidger";
+                    let check_auth = unsafe {
+                        let username = CString::new(username)
+                            .expect("Username could not be C-String-ed");
+                        let password = CString::new(self.buffer.as_str())
+                            .expect("Password could not be C-String-ed");
+                        check_auth(username.as_ptr(), password.as_ptr())
+                    };
+                    if check_auth {
+                        println!("{} logged in!", username);
+                    } else {
+                        println!("{} denied access", username);
+                    }
                     // TODO Submit this.
                     self.buffer.clear()
                 },
