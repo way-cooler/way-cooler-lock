@@ -2,9 +2,10 @@
 extern crate wayland_client;
 extern crate tempfile;
 extern crate byteorder;
+extern crate wayland_kbd;
 
 use std::io::Write;
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{RawFd, AsRawFd, FromRawFd};
 
 use wayland_client::{EventQueueHandle, EnvHandler, Proxy};
 use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm, wl_shell_surface, wl_buffer,
@@ -14,7 +15,7 @@ use byteorder::{NativeEndian, WriteBytesExt};
 
 wayland_env!(WaylandEnv,
              compositor: wl_compositor::WlCompositor,
-             //seat: wl_seat::WlSeat,
+             seat: wl_seat::WlSeat,
              shell: wl_shell::WlShell,
              shm: wl_shm::WlShm,
              output: wl_output::WlOutput
@@ -41,7 +42,9 @@ struct Window {
 struct LockScreen {
     /// Optional resolution, filled in when wl_output::mode is triggered.
     pub res: Option<Resolution>,
-    pub window: Option<Window>
+    pub window: Option<Window>,
+    // The string the user has input-ed so far.
+    pub input: String
 }
 
 
@@ -49,7 +52,8 @@ impl LockScreen {
     fn new() -> Self {
         LockScreen {
             res: None,
-            window: None
+            window: None,
+            input: "".into()
         }
     }
 
@@ -60,7 +64,9 @@ impl LockScreen {
 }
 
 impl wl_shell_surface::Handler for LockScreen {
-    fn ping(&mut self, _: &mut EventQueueHandle, me: &wl_shell_surface::WlShellSurface, serial: u32) {
+    fn ping(&mut self, _: &mut EventQueueHandle,
+            me: &wl_shell_surface::WlShellSurface,
+            serial: u32) {
         me.pong(serial);
     }
 
@@ -90,6 +96,27 @@ impl wl_output::Handler for LockScreen {
 
 declare_handler!(LockScreen, wl_output::Handler, wl_output::WlOutput);
 
+impl wayland_kbd::Handler for LockScreen {
+    fn key(&mut self,
+           _: &mut EventQueueHandle,
+           _: &wl_keyboard::WlKeyboard,
+           _: u32,
+           _: u32,
+           _: &wayland_kbd::ModifiersState,
+           _: u32,
+           _: u32,
+           state: wl_keyboard::KeyState,
+           utf8: Option<String>) {
+        if let wl_keyboard::KeyState::Pressed = state {
+            if let Some(txt) = utf8 {
+                print!("{}", txt);
+                ::std::io::stdout().flush().unwrap();
+            }
+        }
+    }
+}
+
+
 fn main() {
     let (display, mut event_queue) = match wayland_client::default_connect() {
         Ok(ret) => ret,
@@ -117,6 +144,7 @@ fn main() {
 
     event_queue.dispatch().unwrap();
     let shell_surface;
+    let keyboard;
     {
         // get the buffer size out, allocate it, drop the env
         // and then pass to lock_screen with a new mutable borrow
@@ -150,6 +178,7 @@ fn main() {
             shell_surface.set_toplevel();
             surface.attach(Some(&buffer), 0, 0);
             surface.commit();
+            keyboard = env.seat.get_keyboard().expect("Seat was destroyed");
             (buffer, file)
         };
         // Now attach buffer
@@ -160,6 +189,11 @@ fn main() {
     }
     // Register this supporting the shell interface
     event_queue.register::<_, LockScreen>(&shell_surface, lock_screen_id);
+    // Register this supporting the mapped keyboard interface from wayland_kbd
+    // TODO Gotta figure out how to structure this so that it's the same struct
+    // ORRRRR Have two different structs and use message passing (should be easier)
+    let kbd_handler = event_queue.add_handler(wayland_kbd::MappedKeyboard::new(LockScreen::new()).ok().expect("libxkbcommon is missing!"));
+    event_queue.register::<_, wayland_kbd::MappedKeyboard<LockScreen>>(&keyboard, kbd_handler);
     loop {
         display.flush().unwrap();
         event_queue.dispatch().unwrap();
