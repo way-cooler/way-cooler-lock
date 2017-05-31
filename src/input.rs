@@ -5,7 +5,7 @@
 use std::io::Write;
 use wayland_client::EventQueueHandle;
 use wayland_client::protocol::wl_keyboard;
-use wayland_kbd::{self, ModifiersState};
+use wayland_kbd::{self, ModifiersState, keysyms};
 
 pub struct Input {
     buffer: String
@@ -28,14 +28,24 @@ impl wayland_kbd::Handler for Input {
            _: u32,
            _: &ModifiersState,
            _: u32,
-           _: u32,
+           keysym: u32,
            state: wl_keyboard::KeyState,
            text: Option<String>) {
         if let wl_keyboard::KeyState::Pressed = state {
-            if let Some(text) = text {
-                self.buffer.push_str(text.as_str());
-                println!("Got {}", text);
-                println!("so far: {}", self.buffer);
+            match keysym {
+                keysyms::XKB_KEY_Return |
+                keysyms::XKB_KEY_KP_Enter => {
+                    // TODO Submit this.
+                    self.buffer.clear()
+                },
+                keysyms::XKB_KEY_BackSpace => {
+                    self.buffer.pop();
+                }
+                _ => {
+                    if let Some(text) = text {
+                        self.buffer.push_str(text.as_str());
+                    }
+                }
             }
         }
     }
