@@ -109,10 +109,10 @@ impl wayland_kbd::Handler for Input {
                 _ => {
                     if let Some(text) = text {
                         self.buffer.push_str(text.as_str());
-                        self.update_screen_color();
                     }
                 }
             }
+            self.update_screen_color();
         }
     }
 }
