@@ -11,13 +11,17 @@ use wayland_kbd::{self, ModifiersState, keysyms};
 use pam::check_auth;
 
 pub struct Input {
-    buffer: String
+    /// Buffer of what the user has input so far.
+    buffer: String,
+    /// Boolean value saying if the user has logged in yet or not.
+    logged_in: bool
 }
 
 impl Input {
     pub fn new() -> Self {
         Input {
-            buffer: String::new()
+            buffer: String::new(),
+            logged_in: false
         }
     }
 }
@@ -47,9 +51,7 @@ impl wayland_kbd::Handler for Input {
                         check_auth(username.as_ptr(), password.as_ptr())
                     };
                     if check_auth {
-                        println!("{} logged in!", username);
-                    } else {
-                        println!("{} denied access", username);
+                        self.logged_in = true;
                     }
                     // TODO Submit this.
                     self.buffer.clear()
