@@ -1,6 +1,6 @@
 //! Module containing logic for writing to the screen.
 
-use std::io::{Seek, SeekFrom, Write};
+use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::os::unix::io::AsRawFd;
 
 use wayland_client::{self, EventQueueHandle, EnvHandler, Proxy};
@@ -57,12 +57,14 @@ impl Window {
         // Create buffer, write bytes into buffer
         let mut file = tempfile::tempfile().ok()
             .expect("Unable to create buffer file");
+        let mut buf = BufWriter::new(file);
         let black: Color = 0x000000.into();
         for _ in 0..(res.size()) {
-            file.write_u32::<NativeEndian>(black.to_u32())
+            buf.write_u32::<NativeEndian>(black.to_u32())
                 .expect("Could not write to temp file");
         }
-        file.flush().expect("Could not flush file buffer");
+        file = buf.into_inner()
+            .expect("Could not get buffer file");
         // Create surface
         let surface = env.compositor.create_surface();
         let shell_surface = env.shell.get_shell_surface(&surface);
@@ -100,13 +102,16 @@ impl Window {
                         res: Resolution) {
         assert_ne!(res.size(), 0, "Resolution was not properly initialized");
         self.file.seek(SeekFrom::Start(0));
+        let file_copy = self.file.try_clone()
+            .expect("Could not clone file handler");
+        let mut buf = BufWriter::new(file_copy);
         // Create buffer, write bytes into buffer
         for _ in 0..(res.size()) {
-            self.file.write_u32::<NativeEndian>(color.to_u32())
+            buf.write_u32::<NativeEndian>(color.to_u32())
                 .expect("Could not write to temp file");
         }
-        self.file.flush().expect("Could not flush file buffer");
-        // Create surface
+        self.file = buf.into_inner()
+            .expect("Could not consume buffer writer");
         self.surface.damage(0, 0, res.w as i32, res.h as i32);
         self.surface.attach(Some(&self.buffer), 0, 0);
         self.surface.commit();
