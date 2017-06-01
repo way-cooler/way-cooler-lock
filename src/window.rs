@@ -1,14 +1,16 @@
-/// Module containing logic for writing to the screen.
+//! Module containing logic for writing to the screen.
 
-use std::io::Write;
+use std::io::{Seek, SeekFrom, Write};
 use std::os::unix::io::AsRawFd;
 
 use wayland_client::{self, EventQueueHandle, EnvHandler, Proxy};
-use wayland_client::protocol::{wl_shm, wl_shell_surface, wl_buffer, wl_output};
+use wayland_client::protocol::{wl_shm, wl_shell_surface, wl_buffer, wl_output,
+                               wl_surface};
 use byteorder::{NativeEndian, WriteBytesExt};
 use tempfile;
 
 use ::WaylandEnv;
+use ::color::Color;
 
 /// Used to know how big to make the surface.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,7 +40,8 @@ pub struct Window {
     resolution_id: usize,
     buffer: wl_buffer::WlBuffer,
     file: ::std::fs::File,
-    shell_surface: wl_shell_surface::WlShellSurface
+    surface: wl_surface::WlSurface,
+    shell_surface: wl_shell_surface::WlShellSurface,
 }
 
 impl Window {
@@ -52,16 +55,17 @@ impl Window {
         // Create buffer, write bytes into buffer
         let mut file = tempfile::tempfile().ok()
             .expect("Unable to create buffer file");
+        let black: Color = 0x000000.into();
         for _ in 0..(res.size()) {
-            file.write_u32::<NativeEndian>(0)
+            file.write_u32::<NativeEndian>(black.to_u32())
                 .expect("Could not write to temp file");
         }
         file.flush().expect("Could not flush file buffer");
         // Create surface
         let surface = env.compositor.create_surface();
         let shell_surface = env.shell.get_shell_surface(&surface);
-        let pool = env.shm.
-            create_pool(file.as_raw_fd(), (res.w * res.h * 4) as i32);
+        let pool = env.shm
+            .create_pool(file.as_raw_fd(), (res.w * res.h * 4) as i32);
         let buffer = pool.create_buffer(0,
                                         res.w as i32,
                                         res.h as i32,
@@ -72,17 +76,37 @@ impl Window {
         surface.attach(Some(&buffer), 0, 0);
         surface.commit();
 
-            Window {
-                resolution_id,
-                buffer,
-                file,
-                shell_surface
-            }
+        Window {
+            resolution_id,
+            buffer,
+            file,
+            surface,
+            shell_surface,
+        }
     }
 
     pub fn shell_surface(&self) -> wl_shell_surface::WlShellSurface {
         self.shell_surface.clone()
             .expect("Shell surface was not initialized")
+    }
+
+    /// Updates the buffer to have the given color.
+    pub fn update_color(&mut self,
+                        color: Color,
+                        res: Resolution) {
+        assert_ne!(res.size(), 0, "Resolution was not properly initialized");
+        self.file.seek(SeekFrom::Start(0));
+        // Create buffer, write bytes into buffer
+        for _ in 0..(res.size()) {
+            self.file.write_u32::<NativeEndian>(color.to_u32())
+                .expect("Could not write to temp file");
+        }
+        self.file.flush().expect("Could not flush file buffer");
+        // Create surface
+        self.shell_surface.set_toplevel();
+        self.surface.damage(0, 0, res.w as i32, res.h as i32);
+        self.surface.attach(Some(&self.buffer), 0, 0);
+        self.surface.commit();
     }
 }
 

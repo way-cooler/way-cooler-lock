@@ -5,6 +5,7 @@ extern crate byteorder;
 extern crate wayland_kbd;
 extern crate libc;
 
+mod color;
 mod input;
 mod window;
 mod pam;
@@ -61,7 +62,7 @@ fn main() {
 
     // Set up `Input`, which processes user input before passing it off to PAM
     // for authentication.
-    let input = MappedKeyboard::new(Input::new()).ok()
+    let input = MappedKeyboard::new(Input::new(window_id)).ok()
         .expect("Could not create input handler");
     let input_id = event_queue.add_handler(input);
     let keyboard = get_keyboard(env_id, &mut event_queue);
@@ -73,9 +74,18 @@ fn main() {
         event_queue.dispatch()
             .expect("Could not dispatch queue");
         let mut state = event_queue.state();
-        let input = state.get_mut_handler::<MappedKeyboard<Input>>(input_id);
-        if input.handler().is_logged_in() {
-            break;
+        let color = {
+            let input = state.get_mut_handler::<MappedKeyboard<Input>>(input_id);
+            if input.handler().is_logged_in() {
+                break;
+            }
+            input.handler().new_color.take()
+        };
+        println!("Color: {:?}", color);
+        if let Some(color) = color {
+            let res: Resolution = *state.get_handler(resolution_id);
+            let window = state.get_mut_handler::<Window>(window_id);
+            window.update_color(color, res);
         }
     }
 }

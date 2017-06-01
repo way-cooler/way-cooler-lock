@@ -1,9 +1,9 @@
-/// Wrapper around authentication code written in C.
-///
-/// NOTE The reason such a security-sensitive module is written in C instead of
-/// Rust is because there are no good PAM crates available as of May 2017.
-/// If this changes in the future, this module should be removed in favor
-/// of using more battle-tested code.
+//! Wrapper around authentication code written in C.
+//!
+//! NOTE The reason such a security-sensitive module is written in C instead of
+//! Rust is because there are no good PAM crates available as of May 2017.
+//! If this changes in the future, this module should be removed in favor
+//! of using more battle-tested code.
 
 use libc::c_char;
 
