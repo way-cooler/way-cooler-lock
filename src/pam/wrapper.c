@@ -17,6 +17,7 @@ static int pam_conv_handler(int num_msg,
 
   // Allocate empty responses for each message
   struct pam_response *responses;
+  // TODO We leak this memory, how do we free it?
   if (!(responses = calloc(num_msg, sizeof(struct pam_response)))) {
     // If the allocation failed, return PAM_BUF_ERR
     return PAM_BUF_ERR;
