@@ -68,8 +68,10 @@ fn main() {
     event_queue.register::<_, MappedKeyboard<Input>>(&keyboard, input_id);
 
     loop {
-        display.flush().unwrap();
-        event_queue.dispatch().unwrap();
+        display.flush()
+            .expect("Could not flush display");
+        event_queue.dispatch()
+            .expect("Could not dispatch queue");
     }
 }
 

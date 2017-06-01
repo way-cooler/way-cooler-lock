@@ -53,9 +53,10 @@ impl Window {
         let mut file = tempfile::tempfile().ok()
             .expect("Unable to create buffer file");
         for _ in 0..(res.size()) {
-            file.write_u32::<NativeEndian>(0).unwrap();
+            file.write_u32::<NativeEndian>(0)
+                .expect("Could not write to temp file");
         }
-        file.flush().unwrap();
+        file.flush().expect("Could not flush file buffer");
         // Create surface
         let surface = env.compositor.create_surface();
         let shell_surface = env.shell.get_shell_surface(&surface);
