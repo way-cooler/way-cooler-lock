@@ -81,7 +81,6 @@ fn main() {
             }
             input.handler().new_color.take()
         };
-        println!("Color: {:?}", color);
         if let Some(color) = color {
             let res: Resolution = *state.get_handler(resolution_id);
             let window = state.get_mut_handler::<Window>(window_id);
