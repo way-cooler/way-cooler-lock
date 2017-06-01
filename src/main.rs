@@ -72,6 +72,11 @@ fn main() {
             .expect("Could not flush display");
         event_queue.dispatch()
             .expect("Could not dispatch queue");
+        let mut state = event_queue.state();
+        let input = state.get_mut_handler::<MappedKeyboard<Input>>(input_id);
+        if input.handler().is_logged_in() {
+            break;
+        }
     }
 }
 

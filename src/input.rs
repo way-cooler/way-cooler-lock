@@ -14,15 +14,23 @@ pub struct Input {
     /// Buffer of what the user has input so far.
     buffer: String,
     /// Boolean value saying if the user has logged in yet or not.
-    logged_in: bool
+    logged_in: bool,
+    /// Number of failed login attempts.
+    failed: u32
 }
 
 impl Input {
     pub fn new() -> Self {
         Input {
             buffer: String::new(),
-            logged_in: false
+            logged_in: false,
+            failed: 0
         }
+    }
+
+    /// Determines if the user has succesfully logged in yet.
+    pub fn is_logged_in(&self) -> bool {
+        self.logged_in
     }
 }
 
@@ -52,8 +60,10 @@ impl wayland_kbd::Handler for Input {
                     };
                     if check_auth {
                         self.logged_in = true;
+                    } else {
+                        self.failed += 1;
+                        println!("Failed login attempt {}", self.failed);
                     }
-                    // TODO Submit this.
                     self.buffer.clear()
                 },
                 keysyms::XKB_KEY_BackSpace => {
