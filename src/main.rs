@@ -27,24 +27,6 @@ wayland_env!(WaylandEnv,
              output: wl_output::WlOutput
 );
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct LockScreen {
-    /// ID for the `Window` struct
-    window_id: usize,
-    /// ID for the `Input` struct
-    input_id: usize
-}
-
-
-impl LockScreen {
-    fn new(window_id: usize, input_id: usize) -> Self {
-        LockScreen {
-            window_id,
-            input_id
-        }
-    }
-}
-
 fn main() {
     let (display, mut event_queue) = match wayland_client::default_connect() {
         Ok(ret) => ret,
@@ -84,10 +66,6 @@ fn main() {
     let input_id = event_queue.add_handler(input);
     let keyboard = get_keyboard(env_id, &mut event_queue);
     event_queue.register::<_, MappedKeyboard<Input>>(&keyboard, input_id);
-
-    // `LockScreen` has references to both window and input, with helpful
-    // methods wrapping both to keep this high-level.
-    let lock_screen = LockScreen::new(window_id, input_id);
 
     loop {
         display.flush().unwrap();
