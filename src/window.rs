@@ -6,6 +6,7 @@ use std::os::unix::io::AsRawFd;
 use wayland_client::{self, EventQueueHandle, EnvHandler, Proxy};
 use wayland_client::protocol::{wl_shm, wl_shell_surface, wl_buffer, wl_output,
                                wl_surface};
+use wayland_client::protocol::wl_shell_surface::FullscreenMethod;
 use byteorder::{NativeEndian, WriteBytesExt};
 use tempfile;
 
@@ -47,6 +48,7 @@ pub struct Window {
 impl Window {
     // allocates a buffer to hold the surface data
     pub fn new(resolution_id: usize,
+               output: wl_output::WlOutput,
                env_id: usize,
                state: wayland_client::StateGuard) -> Self {
         let res: Resolution = *state.get_handler(resolution_id);
@@ -72,7 +74,9 @@ impl Window {
                                         (res.w * 4) as i32,
                                         wl_shm::Format::Argb8888)
             .expect("Pool is already dead");
-        shell_surface.set_toplevel();
+        shell_surface.set_fullscreen(FullscreenMethod::Default,
+                                     0,
+                                     Some(&output));
         surface.attach(Some(&buffer), 0, 0);
         surface.commit();
 
@@ -103,7 +107,6 @@ impl Window {
         }
         self.file.flush().expect("Could not flush file buffer");
         // Create surface
-        self.shell_surface.set_toplevel();
         self.surface.damage(0, 0, res.w as i32, res.h as i32);
         self.surface.attach(Some(&self.buffer), 0, 0);
         self.surface.commit();

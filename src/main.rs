@@ -55,7 +55,7 @@ fn main() {
 
     // Set up `Window`, which takes care of drawing to the buffer.
     // It uses the `Resolution` to determine how big to make the buffer.
-    let window = Window::new(resolution_id, env_id, event_queue.state());
+    let window = Window::new(resolution_id, output, env_id, event_queue.state());
     let shell_surface = window.shell_surface();
     let window_id = event_queue.add_handler(window);
     event_queue.register::<_, Window>(&shell_surface, window_id);
