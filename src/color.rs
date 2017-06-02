@@ -26,6 +26,7 @@ impl Color {
 
     /// Gets the values of the colors, in this order:
     /// (Red, Green, Blue, Alpha)
+    #[allow(dead_code)]
     pub fn to_u8s(self) -> (u8, u8, u8, u8) {
         (self.red, self.green, self.blue, self.alpha)
     }

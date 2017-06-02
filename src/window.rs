@@ -1,6 +1,6 @@
 //! Module containing logic for writing to the screen.
 
-use std::io::{BufWriter, Seek, SeekFrom, Write};
+use std::io::{BufWriter, Seek, SeekFrom};
 use std::os::unix::io::AsRawFd;
 
 use wayland_client::{self, EventQueueHandle, EnvHandler, Proxy};
@@ -37,8 +37,6 @@ impl Resolution {
 /// The main window struct, containing the buffer backing the wayland surface,
 /// and the file descriptor to the shared memory.
 pub struct Window {
-    /// ID for the `Resolution` struct
-    resolution_id: usize,
     buffer: wl_buffer::WlBuffer,
     file: ::std::fs::File,
     surface: wl_surface::WlSurface,
@@ -83,7 +81,6 @@ impl Window {
         surface.commit();
 
         Window {
-            resolution_id,
             buffer,
             file,
             surface,
@@ -101,7 +98,8 @@ impl Window {
                         color: Color,
                         res: Resolution) {
         assert_ne!(res.size(), 0, "Resolution was not properly initialized");
-        self.file.seek(SeekFrom::Start(0));
+        self.file.seek(SeekFrom::Start(0))
+            .expect("Could not seek to beginning of file");
         let file_copy = self.file.try_clone()
             .expect("Could not clone file handler");
         let mut buf = BufWriter::new(file_copy);

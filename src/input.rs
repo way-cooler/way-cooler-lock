@@ -13,11 +13,8 @@ use pam::check_auth;
 use libc::{getuid, getpwuid};
 
 use ::color::Color;
-use ::window::Window;
 
 pub struct Input {
-    /// ID for the window.
-    window_id: usize,
     /// Buffer of what the user has input so far.
     buffer: String,
     /// Username, gotten from system during `new`.
@@ -31,7 +28,7 @@ pub struct Input {
 }
 
 impl Input {
-    pub fn new(window_id: usize) -> Self {
+    pub fn new() -> Self {
         let username = unsafe {
             let uid = getuid();
             let pwuid = getpwuid(uid);
@@ -39,7 +36,6 @@ impl Input {
             slice.to_string_lossy().into_owned()
         };
         Input {
-            window_id,
             buffer: String::new(),
             username,
             logged_in: false,

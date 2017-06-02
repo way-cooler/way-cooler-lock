@@ -14,7 +14,7 @@ mod pam;
 use input::{Input};
 use window::{Resolution, Window};
 
-use clap::{Arg, App};
+use clap::App;
 
 use wayland_client::EnvHandler;
 use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm,
@@ -72,7 +72,7 @@ fn main() {
 
     // Set up `Input`, which processes user input before passing it off to PAM
     // for authentication.
-    let input = MappedKeyboard::new(Input::new(window_id)).ok()
+    let input = MappedKeyboard::new(Input::new()).ok()
         .expect("Could not create input handler");
     let input_id = event_queue.add_handler(input);
     let keyboard = get_keyboard(env_id, &mut event_queue);
