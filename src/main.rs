@@ -4,6 +4,7 @@ extern crate tempfile;
 extern crate byteorder;
 extern crate wayland_kbd;
 extern crate libc;
+extern crate clap;
 
 mod color;
 mod input;
@@ -13,12 +14,13 @@ mod pam;
 use input::{Input};
 use window::{Resolution, Window};
 
+use clap::{Arg, App};
+
 use wayland_client::EnvHandler;
 use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm,
                                wl_seat, wl_keyboard,
                                wl_output, wl_registry};
 use wayland_kbd::MappedKeyboard;
-
 
 wayland_env!(WaylandEnv,
              compositor: wl_compositor::WlCompositor,
@@ -28,7 +30,15 @@ wayland_env!(WaylandEnv,
              output: wl_output::WlOutput
 );
 
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 fn main() {
+    let _matches = App::new("wc-lock")
+        .version(VERSION)
+        .author("Timidger <APragmaticPlace@gmail.com>")
+        .about("Lock screen for Way Cooler window manager")
+        .get_matches();
+
     let (display, mut event_queue) = match wayland_client::default_connect() {
         Ok(ret) => ret,
         Err(e) => panic!("Cannot connect to wayland server: {:?}", e)
@@ -42,7 +52,7 @@ fn main() {
     event_queue.sync_roundtrip().expect("Could not sync roundtrip");
 
     // Fetch the output now that it has been declared by the compositor.
-    let output = get_output(registry);
+    let output = get_output(env_id, registry, &mut event_queue);
 
     // Set up `Resolution`, which ensures the lockscreen is the same
     // size as the output, even if it resizes.
@@ -90,8 +100,21 @@ fn main() {
 }
 
 
-fn get_output(registry: wl_registry::WlRegistry) -> wl_output::WlOutput {
-    registry.bind::<wl_output::WlOutput>(2, 9)
+fn get_output(env_id: usize,
+              registry: wl_registry::WlRegistry,
+              event_queue: &mut wayland_client::EventQueue)
+              -> wl_output::WlOutput {
+    let state = event_queue.state();
+    let env = state.get_handler::<EnvHandler<WaylandEnv>>(env_id);
+    for &(name, ref interface, version) in env.globals() {
+        if interface == "wl_output" {
+            return registry.bind::<wl_output::WlOutput>(version, name)
+        }
+    }
+    for &(name, ref interface, version) in env.globals() {
+        println!("{:4} : {} (version {})", name, interface, version);
+    }
+    panic!("Could not find wl_output to bind to");
 }
 
 fn get_keyboard(env_id: usize, event_queue: &mut wayland_client::EventQueue)
