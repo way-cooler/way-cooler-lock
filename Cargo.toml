@@ -1,7 +1,7 @@
 [package]
 name = "wc-lock"
 build = "build.rs"
-version = "0.0.0"
+version = "0.1.0"
 authors = ["Timidger <APragmaticPlace@gmail.com>"]
 description = "Lockscreen program for Way Cooler"
 license = "MIT"
