@@ -46,7 +46,7 @@ pub struct Window {
 impl Window {
     // allocates a buffer to hold the surface data
     pub fn new(resolution_id: usize,
-               output: wl_output::WlOutput,
+               output: &wl_output::WlOutput,
                env_id: usize,
                state: wayland_client::StateGuard) -> Self {
         let res: Resolution = *state.get_handler(resolution_id);
@@ -76,7 +76,7 @@ impl Window {
             .expect("Pool is already dead");
         shell_surface.set_fullscreen(FullscreenMethod::Default,
                                      0,
-                                     Some(&output));
+                                     Some(output));
         surface.attach(Some(&buffer), 0, 0);
         surface.commit();
 
