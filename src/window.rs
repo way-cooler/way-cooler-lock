@@ -1,6 +1,6 @@
 //! Module containing logic for writing to the screen.
 
-use std::io::{BufWriter, Seek, SeekFrom};
+use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::os::unix::io::AsRawFd;
 
 use wayland_client::{self, EventQueueHandle, EnvHandler, Proxy};
@@ -38,7 +38,7 @@ impl Resolution {
 /// and the file descriptor to the shared memory.
 pub struct Window {
     buffer: wl_buffer::WlBuffer,
-    file: ::std::fs::File,
+    pub file: ::std::fs::File,
     surface: wl_surface::WlSurface,
     shell_surface: wl_shell_surface::WlShellSurface,
 }
@@ -93,6 +93,23 @@ impl Window {
             .expect("Shell surface was not initialized")
     }
 
+    pub fn write_bytes(&mut self, res: Resolution, bytes: &[u8]) {
+        assert_ne!(res.size(), 0, "Resolution was not properly initialized");
+        self.file.seek(SeekFrom::Start(0))
+            .expect("Could not seek to beginning of file");
+        let file_copy = self.file.try_clone()
+            .expect("Could not clone file handler");
+        let mut buf = BufWriter::new(file_copy);
+        // Create buffer, write bytes into buffer
+        buf.write_all(bytes)
+            .expect("Could not write bytes");
+        self.file = buf.into_inner()
+            .expect("Could not consume buffer writer");
+        self.surface.damage(0, 0, res.w as i32, res.h as i32);
+        self.surface.attach(Some(&self.buffer), 0, 0);
+        self.surface.commit();
+    }
+
     /// Updates the buffer to have the given color.
     pub fn update_color(&mut self,
                         color: Color,
@@ -134,13 +151,14 @@ impl wl_output::Handler for Resolution {
     fn mode(&mut self,
             _evqh: &mut EventQueueHandle,
             _proxy: &wl_output::WlOutput,
-            _flags: wl_output::Mode,
+            flags: wl_output::Mode,
             width: i32,
             height: i32,
             _refresh: i32) {
-        self.w = width as u32;
-        self.h = height as u32;
-        println!("wxh: {}x{}", width, height);
+        if flags.to_raw() & 0x1 != 0 {
+            self.w = width as u32;
+            self.h = height as u32;
+        }
     }
 }
 

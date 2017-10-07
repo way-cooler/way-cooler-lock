@@ -5,11 +5,15 @@ extern crate byteorder;
 extern crate wayland_kbd;
 extern crate libc;
 extern crate clap;
+extern crate dbus;
+extern crate image;
 
 mod color;
 mod input;
 mod window;
 mod pam;
+mod effects;
+use effects::Blur;
 
 use input::{Input};
 use window::{Resolution, Window};
@@ -69,6 +73,7 @@ fn main() {
     let shell_surface = window.shell_surface();
     let window_id = event_queue.add_handler(window);
     event_queue.register::<_, Window>(&shell_surface, window_id);
+    let mut blur = Blur::new(resolution_id, window_id, event_queue.state());
 
     // Set up `Input`, which processes user input before passing it off to PAM
     // for authentication.
@@ -78,9 +83,19 @@ fn main() {
     let keyboard = get_keyboard(env_id, &mut event_queue);
     event_queue.register::<_, MappedKeyboard<Input>>(&keyboard, input_id);
 
+    // TODO parametrize
+    let mut blur_times = 6;
+    let blur_amount = 1.0;
+    event_queue.dispatch()
+        .expect("Could not dispatch queue");
     loop {
         display.flush()
             .expect("Could not flush display");
+        if blur_times >= 0 {
+            blur.blur(blur_amount, resolution_id, event_queue.state());
+            blur_times -= 1;
+            continue;
+        }
         event_queue.dispatch()
             .expect("Could not dispatch queue");
         let mut state = event_queue.state();
@@ -106,8 +121,11 @@ fn get_output(env_id: usize,
               -> wl_output::WlOutput {
     let state = event_queue.state();
     let env = state.get_handler::<EnvHandler<WaylandEnv>>(env_id);
+    let mut seen = false;
     for &(name, ref interface, version) in env.globals() {
+        // TODO macro to return all
         if interface == "wl_output" {
+            if !seen { seen = true; continue }
             return registry.bind::<wl_output::WlOutput>(version, name)
         }
     }
