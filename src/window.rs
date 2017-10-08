@@ -39,7 +39,7 @@ impl Resolution {
 pub struct Window {
     buffer: wl_buffer::WlBuffer,
     pub file: ::std::fs::File,
-    surface: wl_surface::WlSurface,
+    pub surface: wl_surface::WlSurface,
     shell_surface: wl_shell_surface::WlShellSurface,
 }
 

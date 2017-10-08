@@ -9,7 +9,7 @@ use image::png::PNGEncoder;
 use image::{ColorType, DynamicImage, load_from_memory};
 
 /// How long to wait until d-bus timeout
-const DBUS_WAIT_TIME: i32 = 2000;
+const DBUS_WAIT_TIME: i32 = 10000;
 
 // Bit depth of image.
 const BIT_DEPTH: u8 = 8;

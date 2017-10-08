@@ -1,5 +1,5 @@
-#[macro_use]
-extern crate wayland_client;
+#[macro_use] extern crate wayland_client;
+#[macro_use] extern crate wayland_sys;
 extern crate tempfile;
 extern crate byteorder;
 extern crate wayland_kbd;
@@ -35,6 +35,30 @@ wayland_env!(WaylandEnv,
 
 // TODO Library
 #[macro_export]
+macro_rules! get_wayland {
+    ($env_id: tt, $registry: expr, $event_queue: expr, $type: ty, $name: tt) => {{
+        let state = $event_queue.state();
+        let env = state.get_handler::<EnvHandler<WaylandEnv>>($env_id);
+        let mut value = None;
+        for &(name, ref interface, version) in env.globals() {
+            if interface == $name {
+                value = Some($registry.bind::<$type>(version, name));
+                break;
+            }
+        }
+        match value {
+            None => {
+                for &(name, ref interface, version) in env.globals() {
+                    eprintln!("{:4} : {} (version {})", name, interface, version);
+                }
+                eprintln!(concat!("Could not find the ", $name, " protocol!"));
+                None
+            },
+            v => v
+        }
+    }}
+}
+#[macro_export]
 macro_rules! get_all_wayland {
     ($env_id: tt, $registry: expr, $event_queue: expr, $type: ty, $name: tt) => {{
         let state = $event_queue.state();
@@ -60,6 +84,31 @@ macro_rules! get_all_wayland {
     }}
 }
 
+mod generated {
+    // Generated code generally doesn't follow standards
+    #![allow(dead_code,non_camel_case_types,unused_unsafe,unused_variables)]
+    #![allow(non_upper_case_globals,non_snake_case,unused_imports)]
+
+    pub mod interfaces {
+        #[doc(hidden)]
+        use wayland_client::protocol_interfaces::{wl_output_interface, wl_surface_interface};
+        include!(concat!(env!("OUT_DIR"), "/desktop-shell_interface.rs"));
+    }
+
+    pub mod client {
+        #[doc(hidden)]
+        use wayland_client::{Handler, Liveness, EventQueueHandle, Proxy, RequestResult};
+        #[doc(hidden)]
+        use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm, wl_surface,
+                                       wl_seat, wl_keyboard, wl_buffer,
+                                       wl_output, wl_registry};
+        use super::interfaces;
+        include!(concat!(env!("OUT_DIR"), "/desktop-shell_api.rs"));
+    }
+}
+
+use generated::client::desktop_shell::DesktopShell;
+
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 fn main() {
@@ -81,6 +130,14 @@ fn main() {
     // This will make all the globals usable.
     event_queue.sync_roundtrip().expect("Could not sync roundtrip");
 
+    let desktop_shell = match get_wayland!(env_id, &registry, &mut event_queue, DesktopShell, "desktop_shell") {
+        Some(shell) => shell,
+        None => {
+            eprintln!("Please make sure you're running the correct version of Way Cooler");
+            eprintln!("This program only supports versions >= 0.7");
+            ::std::process::exit(1);
+        }
+    };
     // Fetch the output now that it has been declared by the compositor.
     use wl_output::WlOutput;
     let outputs = get_all_wayland!(env_id, registry, &mut event_queue, WlOutput, "wl_output")
@@ -113,6 +170,7 @@ fn main() {
         // It uses the `Resolution` to determine how big to make the buffer.
         let window = Window::new(resolution_id, output, env_id, event_queue.state());
         let shell_surface = window.shell_surface();
+        desktop_shell.set_lock_surface(&output, &window.surface);
         let window_id = event_queue.add_handler(window);
         event_queue.register::<_, Window>(&shell_surface, window_id);
         let blur = Blur::new(resolution_id, window_id, event_queue.state());
@@ -145,6 +203,7 @@ fn main() {
             let input = state.get_mut_handler::<MappedKeyboard<Input>>(input_id);
             let handler = input.handler();
             if handler.is_logged_in() {
+                desktop_shell.unlock();
                 break 'main;
             }
             handler.new_color.take()
