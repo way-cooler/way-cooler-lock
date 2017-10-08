@@ -21,7 +21,7 @@ use effects::Blur;
 use input::{Input};
 use window::{Resolution, Window};
 
-use clap::App;
+use clap::{App, Arg};
 
 use wayland_client::EnvHandler;
 use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm,
@@ -65,10 +65,15 @@ use generated::client::desktop_shell::DesktopShell;
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 fn main() {
-    let _matches = App::new("wc-lock")
+    let matches = App::new("wc-lock")
         .version(VERSION)
         .author("Timidger <APragmaticPlace@gmail.com>")
         .about("Lock screen for Way Cooler window manager")
+        .arg(Arg::with_name("fancy-blur")
+             .long("fancy-blur")
+             .value_name("fancy-blur")
+             .takes_value(false)
+             .help("Enable fancy blur option"))
         .get_matches();
 
     let (display, mut event_queue) = match wayland_client::default_connect() {
@@ -128,11 +133,13 @@ fn main() {
         let shell_surface = window.shell_surface();
         let window_id = event_queue.add_handler(window);
         event_queue.register::<_, Window>(&shell_surface, window_id);
-        let blur = Blur::new(resolution_id, window_id, output_count, event_queue.state());
         output_count += 1;
         windows.push(window_id);
 
-        blurs.push(blur);
+        if matches.is_present("fancy-blur") {
+            let blur = Blur::new(resolution_id, window_id, output_count, event_queue.state());
+            blurs.push(blur);
+        }
     }
 
     // TODO parametrize
@@ -145,7 +152,7 @@ fn main() {
             .expect("Could not flush display");
         event_queue.dispatch_pending()
             .expect("Could not dispatch queue");
-        if blur_times >= 0 {
+        if blur_times >= 0 && matches.is_present("fancy-blur") {
             for (blur, resolution_id) in blurs.iter_mut().zip(resolutions.clone()) {
                 blur.blur(blur_amount, resolution_id, event_queue.state());
                 blur_times -= 1;
@@ -166,18 +173,20 @@ fn main() {
             }
             handler.new_color.take()
         };
-        for ((blur, resolution_id), window_id) in blurs.iter_mut().zip(resolutions.clone()).zip(windows.clone()) {
-            let res: Resolution = *state.get_handler(resolution_id);
-            blur.random_input_circles(res, window_id, &mut state);
+        if matches.is_present("fancy-blur") {
+            for ((blur, resolution_id), window_id) in blurs.iter_mut().zip(resolutions.clone()).zip(windows.clone()) {
+                let res: Resolution = *state.get_handler(resolution_id);
+                blur.random_input_circles(res, window_id, &mut state);
+            }
+        } else {
+            for (resolution_id, window_id) in zipped {
+                if let Some(color) = color {
+                    let res: Resolution = *state.get_handler(resolution_id);
+                    let window = state.get_mut_handler::<Window>(window_id);
+                    window.update_color(color, res);
+                }
+            }
         }
-        // TODO re-enable, parametrize
-        //for (resolution_id, window_id) in zipped {
-        //    if let Some(color) = color {
-        //        let res: Resolution = *state.get_handler(resolution_id);
-        //        let window = state.get_mut_handler::<Window>(window_id);
-        //        window.update_color(color, res);
-        //    }
-        //}
     }
     event_queue.dispatch()
         .expect("Could not dispatch queue");
