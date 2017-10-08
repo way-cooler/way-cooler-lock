@@ -1,6 +1,6 @@
 //! Takes the current screen and blurs it so that you can't see what
 //! is going on.
-use dbus::{Connection, Message, BusType};
+use dbus::{Connection, Message, BusType, MessageItem};
 use dbus::arg::Array;
 
 use wayland_client;
@@ -22,11 +22,12 @@ pub struct Blur {
 impl Blur {
     pub fn new(resolution_id: usize,
                window_id: usize,
+               output: u32,
                mut state: wayland_client::StateGuard)
                -> Self {
         let res: Resolution = *state.get_handler(resolution_id);
         let window: &mut Window = state.get_mut_handler(window_id);
-        let image = get_screen(res);
+        let image = get_screen(res, output);
         window.write_bytes(res, &image.to_rgba().into_raw());
         Blur {
             window_id,
@@ -48,14 +49,15 @@ impl Blur {
     }
 }
 
-fn get_screen(res: Resolution) -> DynamicImage {
+fn get_screen(res: Resolution, output: u32) -> DynamicImage {
     let con = Connection::get_private(BusType::Session)
         .expect("Could not get d-bus connection");
     let screen_msg = Message::new_method_call("org.way-cooler",
                                               "/org/way_cooler/Screen",
                                               "org.way_cooler.Screen",
                                               "Scrape")
-        .expect("Could not construct message -- is Way Cooler running?");
+        .expect("Could not construct message -- is Way Cooler running?")
+        .append(MessageItem::UInt32(output));
     let reply = con.send_with_reply_and_block(screen_msg, DBUS_WAIT_TIME)
         .expect("Could not talk to Way Cooler -- is Way Cooler running?");
     let mut pixels = reply.get1::<Array<u8, _>>()

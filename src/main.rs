@@ -161,6 +161,7 @@ fn main() {
     let keyboard = get_keyboard(env_id, &mut event_queue);
     event_queue.register::<_, MappedKeyboard<Input>>(&keyboard, input_id);
     event_queue.dispatch().expect("Could not dispatch resolution");
+    let mut output_count = 1;
     for (output, resolution_id) in outputs.iter().zip(resolutions.clone()) {
         // Set up `Resolution`, which ensures the lockscreen is the same
         // size as the output, even if it resizes.
@@ -175,7 +176,8 @@ fn main() {
         let shell_surface = window.shell_surface();
         let window_id = event_queue.add_handler(window);
         event_queue.register::<_, Window>(&shell_surface, window_id);
-        let blur = Blur::new(resolution_id, window_id, event_queue.state());
+        let blur = Blur::new(resolution_id, window_id, output_count, event_queue.state());
+        output_count += 1;
         windows.push(window_id);
 
         blurs.push(blur);
