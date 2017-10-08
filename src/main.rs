@@ -174,9 +174,9 @@ fn main() {
             handler.new_color.take()
         };
         if matches.is_present("fancy-blur") {
-            for ((blur, resolution_id), window_id) in blurs.iter_mut().zip(resolutions.clone()).zip(windows.clone()) {
+            for (blur, resolution_id) in blurs.iter_mut().zip(resolutions.clone()) {
                 let res: Resolution = *state.get_handler(resolution_id);
-                blur.random_input_circles(res, window_id, &mut state);
+                blur.random_input_circles(res, &mut state);
             }
         } else {
             for (resolution_id, window_id) in zipped {

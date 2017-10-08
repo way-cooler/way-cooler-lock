@@ -6,7 +6,7 @@ use dbus::arg::Array;
 use wayland_client;
 use ::window::{Window, Resolution};
 use image::png::PNGEncoder;
-use image::{ColorType, DynamicImage, SubImage, GenericImage, load_from_memory, imageops};
+use image::{ColorType, DynamicImage, SubImage, load_from_memory, imageops};
 
 /// How long to wait until d-bus timeout
 const DBUS_WAIT_TIME: i32 = 10000;
@@ -50,7 +50,6 @@ impl Blur {
 
     /// Puts random circles to signify input.
     pub fn random_input_circles(&mut self, res: Resolution,
-                                window_id: usize,
                                 state: &mut wayland_client::StateGuard) {
         let x = ::rand::random::<u32>() % (res.w - 32);
         let y = ::rand::random::<u32>() % (res.h - 32);
