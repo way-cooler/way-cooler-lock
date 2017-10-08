@@ -185,8 +185,8 @@ fn main() {
     }
 
     // TODO parametrize
-    let mut blur_times = 6;
-    let blur_amount = 1.0;
+    let mut blur_times = 0;
+    let blur_amount = 10.5;
     event_queue.dispatch()
         .expect("Could not dispatch queue");
     'main: loop {
