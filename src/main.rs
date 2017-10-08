@@ -216,6 +216,8 @@ fn main() {
             }
         }
     }
+    event_queue.dispatch()
+        .expect("Could not dispatch queue");
 }
 
 fn get_keyboard(env_id: usize, event_queue: &mut wayland_client::EventQueue)
