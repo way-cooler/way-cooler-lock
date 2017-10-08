@@ -10,6 +10,7 @@ dependencies = [
  "libc 0.2.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 2.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "way-cooler-client-helpers 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wayland-client 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "wayland-kbd 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wayland-scanner 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -515,6 +516,15 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "way-cooler-client-helpers"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "wayland-client 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wayland-sys 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "wayland-client"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -639,6 +649,7 @@ dependencies = [
 "checksum unicode-segmentation 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a8083c594e02b8ae1654ae26f0ade5158b119bd88ad0e8227a5d8fcd72407946"
 "checksum unicode-width 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "bf3a113775714a22dcb774d8ea3655c53a32debae63a063acc00a91cc586245f"
 "checksum vec_map 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "887b5b631c2ad01628bbbaa7dd4c869f80d3186688f8d0b6f58774fbe324988c"
+"checksum way-cooler-client-helpers 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f730f452618282eb633541b9b47847d7fab6347e04198feda5aeda9f598bc19d"
 "checksum wayland-client 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)" = "e88d37cf16cb5f054753bae4fa7c3d7a6f30a7d150fbccb35ddf00b9b2febbfb"
 "checksum wayland-kbd 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1ded423df5384fdd679edfbd4ee8e2a32e9b4c65677ec6c30059550696c26a38"
 "checksum wayland-scanner 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)" = "89a072e5dcaa24657ef7cf46ad633f28ad8940b728e8c3b49ba27f0736f2f6c3"
