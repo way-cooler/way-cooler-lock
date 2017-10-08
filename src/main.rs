@@ -158,13 +158,11 @@ fn main() {
     let input_id = event_queue.add_handler(input);
     let keyboard = get_keyboard(env_id, &mut event_queue);
     event_queue.register::<_, MappedKeyboard<Input>>(&keyboard, input_id);
+    event_queue.dispatch().expect("Could not dispatch resolution");
     for (output, resolution_id) in outputs.iter().zip(resolutions.clone()) {
         // Set up `Resolution`, which ensures the lockscreen is the same
         // size as the output, even if it resizes.
         event_queue.register::<_, Resolution>(&output, resolution_id);
-
-        // Dispatch so that the resolution is properly set in the handler.
-        event_queue.dispatch().expect("Could not dispatch resolution");
 
         // Set up `Window`, which takes care of drawing to the buffer.
         // It uses the `Resolution` to determine how big to make the buffer.
