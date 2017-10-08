@@ -46,6 +46,7 @@ pub struct Window {
 impl Window {
     // allocates a buffer to hold the surface data
     pub fn new(resolution_id: usize,
+               surface: wl_surface::WlSurface,
                output: &wl_output::WlOutput,
                env_id: usize,
                state: wayland_client::StateGuard) -> Self {
@@ -64,8 +65,11 @@ impl Window {
         file = buf.into_inner()
             .expect("Could not get buffer file");
         // Create surface
-        let surface = env.compositor.create_surface();
+        //let surface = env.compositor.create_surface();
         let shell_surface = env.shell.get_shell_surface(&surface);
+        shell_surface.set_class("Lockscreen".into());
+        shell_surface.set_fullscreen(FullscreenMethod::Default, 0, Some(&output));
+        shell_surface.set_maximized(Some(&output));
         let pool = env.shm
             .create_pool(file.as_raw_fd(), (res.w * res.h * 4) as i32);
         let buffer = pool.create_buffer(0,

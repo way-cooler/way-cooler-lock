@@ -24,6 +24,7 @@ use wayland_client::EnvHandler;
 use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm,
                                wl_seat, wl_keyboard, wl_output};
 use wayland_kbd::MappedKeyboard;
+use wl_compositor::WlCompositor;
 
 wayland_env!(WaylandEnv,
              compositor: wl_compositor::WlCompositor,
@@ -129,6 +130,7 @@ fn main() {
     // a roundtrip sync will dispatch all event declaring globals to the handler
     // This will make all the globals usable.
     event_queue.sync_roundtrip().expect("Could not sync roundtrip");
+    let compositor = get_wayland!(env_id, &registry, &mut event_queue, WlCompositor, "wl_compositor").unwrap();
 
     let desktop_shell = match get_wayland!(env_id, &registry, &mut event_queue, DesktopShell, "desktop_shell") {
         Some(shell) => shell,
@@ -163,12 +165,14 @@ fn main() {
         // Set up `Resolution`, which ensures the lockscreen is the same
         // size as the output, even if it resizes.
         event_queue.register::<_, Resolution>(&output, resolution_id);
+        let surface = compositor.create_surface();
 
+        desktop_shell.set_lock_surface(&output, &surface);
+        event_queue.dispatch_pending().unwrap();
         // Set up `Window`, which takes care of drawing to the buffer.
         // It uses the `Resolution` to determine how big to make the buffer.
-        let window = Window::new(resolution_id, output, env_id, event_queue.state());
+        let window = Window::new(resolution_id, surface, output, env_id, event_queue.state());
         let shell_surface = window.shell_surface();
-        desktop_shell.set_lock_surface(&output, &window.surface);
         let window_id = event_queue.add_handler(window);
         event_queue.register::<_, Window>(&shell_surface, window_id);
         let blur = Blur::new(resolution_id, window_id, event_queue.state());
@@ -185,6 +189,8 @@ fn main() {
     'main: loop {
         display.flush()
             .expect("Could not flush display");
+        event_queue.dispatch_pending()
+            .expect("Could not dispatch queue");
         if blur_times >= 0 {
             for (blur, resolution_id) in blurs.iter_mut().zip(resolutions.clone()) {
                 blur.blur(blur_amount, resolution_id, event_queue.state());
