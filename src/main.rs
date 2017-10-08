@@ -7,6 +7,7 @@ extern crate libc;
 extern crate clap;
 extern crate dbus;
 extern crate image;
+extern crate rand;
 
 mod color;
 mod input;
@@ -214,13 +215,18 @@ fn main() {
             }
             handler.new_color.take()
         };
-        for (resolution_id, window_id) in zipped {
-            if let Some(color) = color {
-                let res: Resolution = *state.get_handler(resolution_id);
-                let window = state.get_mut_handler::<Window>(window_id);
-                window.update_color(color, res);
-            }
+        for ((blur, resolution_id), window_id) in blurs.iter_mut().zip(resolutions.clone()).zip(windows.clone()) {
+            let res: Resolution = *state.get_handler(resolution_id);
+            blur.random_input_circles(res, window_id, &mut state);
         }
+        // TODO re-enable, parametrize
+        //for (resolution_id, window_id) in zipped {
+        //    if let Some(color) = color {
+        //        let res: Resolution = *state.get_handler(resolution_id);
+        //        let window = state.get_mut_handler::<Window>(window_id);
+        //        window.update_color(color, res);
+        //    }
+        //}
     }
     event_queue.dispatch()
         .expect("Could not dispatch queue");

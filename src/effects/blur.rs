@@ -6,7 +6,7 @@ use dbus::arg::Array;
 use wayland_client;
 use ::window::{Window, Resolution};
 use image::png::PNGEncoder;
-use image::{ColorType, DynamicImage, load_from_memory};
+use image::{ColorType, DynamicImage, SubImage, GenericImage, load_from_memory, imageops};
 
 /// How long to wait until d-bus timeout
 const DBUS_WAIT_TIME: i32 = 10000;
@@ -44,6 +44,21 @@ impl Blur {
         // See this issue https://github.com/PistonDevelopers/image/issues/615
         self.image = self.image.blur(amount);
         let res: Resolution = *state.get_handler(resolution_id);
+        let window: &mut Window = state.get_mut_handler(self.window_id);
+        window.write_bytes(res, &self.image.to_rgba().into_raw());
+    }
+
+    /// Puts random circles to signify input.
+    pub fn random_input_circles(&mut self, res: Resolution,
+                                window_id: usize,
+                                state: &mut wayland_client::StateGuard) {
+        let x = ::rand::random::<u32>() % (res.w - 32);
+        let y = ::rand::random::<u32>() % (res.h - 32);
+        let w = 32;
+        let h = 32;
+        let mut sub_image = DynamicImage::ImageRgba8(SubImage::new(&mut self.image, x, y, w, h).to_image());
+        sub_image.invert();
+        imageops::replace(&mut self.image, &sub_image, x, y);
         let window: &mut Window = state.get_mut_handler(self.window_id);
         window.write_bytes(res, &self.image.to_rgba().into_raw());
     }

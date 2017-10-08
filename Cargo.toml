@@ -16,6 +16,7 @@ libc = "0.2.*"
 clap = "2.*"
 dbus = "0.5"
 image = "^0.10.3"
+rand = "0.3"
 
 
 [build-dependencies]
