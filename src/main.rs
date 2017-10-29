@@ -1,26 +1,33 @@
-#[macro_use]
-extern crate wayland_client;
+#[macro_use] extern crate wayland_client;
+#[macro_use] extern crate wayland_sys;
 extern crate tempfile;
 extern crate byteorder;
 extern crate wayland_kbd;
 extern crate libc;
 extern crate clap;
+extern crate dbus;
+extern crate image;
+extern crate rand;
+#[macro_use] extern crate way_cooler_client_helpers;
 
-mod color;
+use way_cooler_client_helpers::color;
+
 mod input;
 mod window;
 mod pam;
+mod effects;
+use effects::Blur;
 
 use input::{Input};
 use window::{Resolution, Window};
 
-use clap::App;
+use clap::{App, Arg};
 
 use wayland_client::EnvHandler;
 use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm,
-                               wl_seat, wl_keyboard,
-                               wl_output, wl_registry};
+                               wl_seat, wl_keyboard, wl_output};
 use wayland_kbd::MappedKeyboard;
+use wl_compositor::WlCompositor;
 
 wayland_env!(WaylandEnv,
              compositor: wl_compositor::WlCompositor,
@@ -30,13 +37,43 @@ wayland_env!(WaylandEnv,
              output: wl_output::WlOutput
 );
 
+mod generated {
+    // Generated code generally doesn't follow standards
+    #![allow(dead_code,non_camel_case_types,unused_unsafe,unused_variables)]
+    #![allow(non_upper_case_globals,non_snake_case,unused_imports)]
+
+    pub mod interfaces {
+        #[doc(hidden)]
+        use wayland_client::protocol_interfaces::{wl_output_interface, wl_surface_interface};
+        include!(concat!(env!("OUT_DIR"), "/desktop-shell_interface.rs"));
+    }
+
+    pub mod client {
+        #[doc(hidden)]
+        use wayland_client::{Handler, Liveness, EventQueueHandle, Proxy, RequestResult};
+        #[doc(hidden)]
+        use wayland_client::protocol::{wl_compositor, wl_shell, wl_shm, wl_surface,
+                                       wl_seat, wl_keyboard, wl_buffer,
+                                       wl_output, wl_registry};
+        use super::interfaces;
+        include!(concat!(env!("OUT_DIR"), "/desktop-shell_api.rs"));
+    }
+}
+
+use generated::client::desktop_shell::DesktopShell;
+
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 fn main() {
-    let _matches = App::new("wc-lock")
+    let matches = App::new("wc-lock")
         .version(VERSION)
         .author("Timidger <APragmaticPlace@gmail.com>")
         .about("Lock screen for Way Cooler window manager")
+        .arg(Arg::with_name("fancy-blur")
+             .long("fancy-blur")
+             .value_name("fancy-blur")
+             .takes_value(false)
+             .help("Enable fancy blur option"))
         .get_matches();
 
     let (display, mut event_queue) = match wayland_client::default_connect() {
@@ -50,26 +87,29 @@ fn main() {
     // a roundtrip sync will dispatch all event declaring globals to the handler
     // This will make all the globals usable.
     event_queue.sync_roundtrip().expect("Could not sync roundtrip");
+    let compositor = get_wayland!(env_id, &registry, &mut event_queue, WlCompositor, "wl_compositor").unwrap();
 
+    let desktop_shell = match get_wayland!(env_id, &registry, &mut event_queue, DesktopShell, "desktop_shell") {
+        Some(shell) => shell,
+        None => {
+            eprintln!("Please make sure you're running the correct version of Way Cooler");
+            eprintln!("This program only supports versions >= 0.7");
+            ::std::process::exit(1);
+        }
+    };
     // Fetch the output now that it has been declared by the compositor.
-    let output = get_output(env_id, registry, &mut event_queue);
-
-    // Set up `Resolution`, which ensures the lockscreen is the same
-    // size as the output, even if it resizes.
-    let resolution = Resolution::new();
-    let resolution_id = event_queue.add_handler(resolution);
-    event_queue.register::<_, Resolution>(&output, resolution_id);
-
-    // Dispatch so that the resolution is properly set in the handler.
-    event_queue.dispatch().expect("Could not dispatch resolution");
-
-    // Set up `Window`, which takes care of drawing to the buffer.
-    // It uses the `Resolution` to determine how big to make the buffer.
-    let window = Window::new(resolution_id, output, env_id, event_queue.state());
-    let shell_surface = window.shell_surface();
-    let window_id = event_queue.add_handler(window);
-    event_queue.register::<_, Window>(&shell_surface, window_id);
-
+    use wl_output::WlOutput;
+    let outputs = get_all_wayland!(env_id, registry, &mut event_queue, WlOutput, "wl_output")
+        .expect("Could not get outputs");
+    let resolutions: Vec<usize> = outputs.iter()
+        .map(|output| {
+            let res = Resolution::new();
+            let resolution_id = event_queue.add_handler(res);
+            event_queue.register::<_, Resolution>(output, resolution_id);
+            resolution_id
+        }).collect();
+    let mut blurs = Vec::with_capacity(outputs.len());
+    let mut windows = Vec::with_capacity(outputs.len());
     // Set up `Input`, which processes user input before passing it off to PAM
     // for authentication.
     let input = MappedKeyboard::new(Input::new()).ok()
@@ -77,44 +117,79 @@ fn main() {
     let input_id = event_queue.add_handler(input);
     let keyboard = get_keyboard(env_id, &mut event_queue);
     event_queue.register::<_, MappedKeyboard<Input>>(&keyboard, input_id);
+    event_queue.dispatch().expect("Could not dispatch resolution");
+    let mut output_count = 1;
+    for (output, resolution_id) in outputs.iter().zip(resolutions.clone()) {
+        // Set up `Resolution`, which ensures the lockscreen is the same
+        // size as the output, even if it resizes.
+        event_queue.register::<_, Resolution>(&output, resolution_id);
+        let surface = compositor.create_surface();
 
-    loop {
+        desktop_shell.set_lock_surface(&output, &surface);
+        event_queue.dispatch_pending().unwrap();
+        // Set up `Window`, which takes care of drawing to the buffer.
+        // It uses the `Resolution` to determine how big to make the buffer.
+        let window = Window::new(resolution_id, surface, output, env_id, event_queue.state());
+        let shell_surface = window.shell_surface();
+        let window_id = event_queue.add_handler(window);
+        event_queue.register::<_, Window>(&shell_surface, window_id);
+        output_count += 1;
+        windows.push(window_id);
+
+        if matches.is_present("fancy-blur") {
+            let blur = Blur::new(resolution_id, window_id, output_count, event_queue.state());
+            blurs.push(blur);
+        }
+    }
+
+    // TODO parametrize
+    let mut blur_times = 0;
+    let blur_amount = 10.5;
+    event_queue.dispatch()
+        .expect("Could not dispatch queue");
+    'main: loop {
         display.flush()
             .expect("Could not flush display");
+        event_queue.dispatch_pending()
+            .expect("Could not dispatch queue");
+        if blur_times >= 0 && matches.is_present("fancy-blur") {
+            for (blur, resolution_id) in blurs.iter_mut().zip(resolutions.clone()) {
+                blur.blur(blur_amount, resolution_id, event_queue.state());
+                blur_times -= 1;
+            }
+            continue;
+        }
         event_queue.dispatch()
             .expect("Could not dispatch queue");
         let mut state = event_queue.state();
+        let zipped = resolutions.clone().into_iter()
+            .zip(windows.clone());
         let color = {
             let input = state.get_mut_handler::<MappedKeyboard<Input>>(input_id);
-            if input.handler().is_logged_in() {
-                break;
+            let handler = input.handler();
+            if handler.is_logged_in() {
+                desktop_shell.unlock();
+                break 'main;
             }
-            input.handler().new_color.take()
+            handler.new_color.take()
         };
-        if let Some(color) = color {
-            let res: Resolution = *state.get_handler(resolution_id);
-            let window = state.get_mut_handler::<Window>(window_id);
-            window.update_color(color, res);
+        if matches.is_present("fancy-blur") {
+            for (blur, resolution_id) in blurs.iter_mut().zip(resolutions.clone()) {
+                let res: Resolution = *state.get_handler(resolution_id);
+                blur.random_input_circles(res, &mut state);
+            }
+        } else {
+            for (resolution_id, window_id) in zipped {
+                if let Some(color) = color {
+                    let res: Resolution = *state.get_handler(resolution_id);
+                    let window = state.get_mut_handler::<Window>(window_id);
+                    window.update_color(color, res);
+                }
+            }
         }
     }
-}
-
-
-fn get_output(env_id: usize,
-              registry: wl_registry::WlRegistry,
-              event_queue: &mut wayland_client::EventQueue)
-              -> wl_output::WlOutput {
-    let state = event_queue.state();
-    let env = state.get_handler::<EnvHandler<WaylandEnv>>(env_id);
-    for &(name, ref interface, version) in env.globals() {
-        if interface == "wl_output" {
-            return registry.bind::<wl_output::WlOutput>(version, name)
-        }
-    }
-    for &(name, ref interface, version) in env.globals() {
-        println!("{:4} : {} (version {})", name, interface, version);
-    }
-    panic!("Could not find wl_output to bind to");
+    event_queue.dispatch()
+        .expect("Could not dispatch queue");
 }
 
 fn get_keyboard(env_id: usize, event_queue: &mut wayland_client::EventQueue)
