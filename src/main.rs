@@ -118,7 +118,7 @@ fn main() {
     let keyboard = get_keyboard(env_id, &mut event_queue);
     event_queue.register::<_, MappedKeyboard<Input>>(&keyboard, input_id);
     event_queue.dispatch().expect("Could not dispatch resolution");
-    let mut output_count = 1;
+    let mut output_count = 0;
     for (output, resolution_id) in outputs.iter().zip(resolutions.clone()) {
         // Set up `Resolution`, which ensures the lockscreen is the same
         // size as the output, even if it resizes.
